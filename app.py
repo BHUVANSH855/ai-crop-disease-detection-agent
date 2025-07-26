@@ -235,21 +235,25 @@ def get_diagnosis():
 @app.route('/history', methods=['GET'])
 def get_history():
     if not db:
+        print("ERROR: Firestore 'db' object is None before history fetch.") # Add this line
         return jsonify({"error": "Firestore not initialized."}), 500
-    
+
     try:
         predictions_ref = db.collection('predictions').order_by('timestamp', direction=firestore.Query.DESCENDING).limit(50)
         docs = predictions_ref.stream()
-        
+
         history_data = []
         for doc in docs:
             data = doc.to_dict()
             if 'timestamp' in data and data['timestamp']:
                 data['timestamp'] = data['timestamp'].isoformat()
             history_data.append(data)
-        
+
         return jsonify({"history": history_data})
     except Exception as e:
+        print(f"ERROR fetching history: {e}") # ADD THIS LINE
+        import traceback # ADD THIS LINE
+        traceback.print_exc() # ADD THIS LINE - this will print the full traceback
         return jsonify({"error": f"Error fetching history: {e}"}), 500
 
 # --- Frontend Routes ---
