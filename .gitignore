@@ -1,3 +1,4 @@
 serviceAccountKey.json
 .env
-class_indices.json
+app_local.py
+plant-disease-detection-467016-55dc39c76029.json
