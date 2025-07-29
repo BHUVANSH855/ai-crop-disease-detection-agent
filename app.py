@@ -1,8 +1,7 @@
 import os
 import json
 import numpy as np
-import tensorflow as tf
-from tensorflow.keras.models import load_model
+import tensorflow as tf # For tf.lite.Interpreter
 from tensorflow.keras.preprocessing import image
 import google.generativeai as genai
 from flask import Flask, request, jsonify, render_template, send_from_directory
@@ -12,12 +11,6 @@ from firebase_admin import credentials, firestore
 from datetime import datetime
 import base64
 import io
-# Import load_dotenv ONLY if you use a .env file for local development
-# from dotenv import load_dotenv
-from google.cloud import storage # Import Google Cloud Storage client at the top level
-
-# If you use a .env file locally, uncomment the next line:
-# load_dotenv()
 
 # --- Flask App Setup ---
 app = Flask(__name__, template_folder='templates', static_folder='static')
@@ -26,102 +19,61 @@ CORS(app)
 # --- Configuration ---
 IMG_HEIGHT = 128
 IMG_WIDTH = 128
-# Model will be downloaded to the root directory during Render build
-MODEL_FILENAME = 'crop_diagnosis_best_model.keras'
+# Model is now assumed to be directly in the cloned repository
+MODEL_FILENAME = 'crop_diagnosis_best_model.tflite'
 CLASS_INDICES_FILENAME = os.path.join(os.getcwd(), 'class_indices.json')
-# Path for local Firebase service account key (NOT for Render deployment)
-LOCAL_FIREBASE_KEY_PATH = os.path.join(os.getcwd(), 'serviceAccountKey.json')
 
-# --- GCS Configuration for Model Download ---
-# REPLACE with YOUR ACTUAL GCS BUCKET NAME
-GCS_BUCKET_NAME = "crop-doctor-ml-models-aayush-2025"
-# Name of the model file as it is stored in your GCS bucket
-GCS_MODEL_BLOB_NAME = "crop_diagnosis_best_model.keras"
-
-# --- API Key (Read from environment variable for security) ---
-# This will read from Render's environment variables or your local .env
+# --- API Key (Read from Render environment variable for security) ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # --- Global variables for model and class labels ---
-model = None
+model = None # 'model' will now hold the TensorFlow Lite Interpreter object
 class_labels = None
 db = None # Firestore database client
 
-# --- Function to download model from GCS ---
-def download_model_from_gcs():
-    # Check if model already exists (e.g., if running locally after first download)
-    if os.path.exists(MODEL_FILENAME):
-        print(f"Model already exists at {MODEL_FILENAME}. Skipping GCS download.")
-        return
-
-    try:
-        # Authenticate using environment variable (for Render deployment)
-        # This env var (GCS_SERVICE_ACCOUNT_KEY) will contain the JSON string of your service account key
-        gcs_key_json = os.getenv("GCS_SERVICE_ACCOUNT_KEY")
-        if gcs_key_json:
-            credentials_info = json.loads(gcs_key_json)
-            client = storage.Client.from_service_account_info(credentials_info)
-            print("Using GCS_SERVICE_ACCOUNT_KEY environment variable for GCS authentication.")
-        else:
-            # Fallback for local testing if you have default GCS credentials configured
-            # (e.g., via `gcloud auth application-default login`) or if bucket is public.
-            print("Warning: GCS_SERVICE_ACCOUNT_KEY not set. Attempting default GCS authentication for model download.")
-            client = storage.Client()
-
-        bucket = client.bucket(GCS_BUCKET_NAME)
-        blob = bucket.blob(GCS_MODEL_BLOB_NAME)
-
-        print(f"Downloading model from gs://{GCS_BUCKET_NAME}/{GCS_MODEL_BLOB_NAME} to {MODEL_FILENAME}...")
-        blob.download_to_filename(MODEL_FILENAME)
-        print("Model downloaded successfully.")
-    except Exception as e:
-        print(f"Error downloading model from GCS: {e}")
-        # Re-raise the exception to cause the Render build to fail if download fails
-        raise
-
-# --- Initialize Firebase Admin SDK ---
+# --- Initialize Firebase Admin SDK (Optimized for Render Environment Variables) ---
 def initialize_firebase():
     global db
-    print("Attempting to initialize Firebase...") # Added for debugging
+    print("Attempting to initialize Firebase...")
     try:
-        # For Render deployment, Firebase credentials should be passed as an environment variable (FIREBASE_CONFIG_JSON)
         firebase_config_json = os.getenv("FIREBASE_CONFIG_JSON")
-        if firebase_config_json:
-            cred = credentials.Certificate(json.loads(firebase_config_json))
-            print("Using FIREBASE_CONFIG_JSON environment variable for Firebase initialization.")
-        elif os.path.exists(LOCAL_FIREBASE_KEY_PATH): # Fallback for local development
-            print("Using local serviceAccountKey.json for Firebase initialization.")
-            cred = credentials.Certificate(LOCAL_FIREBASE_KEY_PATH)
-        else:
-            print(f"Error: Firebase service account key not found at {LOCAL_FIREBASE_KEY_PATH} or FIREBASE_CONFIG_JSON not set.")
-            print("Please ensure serviceAccountKey.json is in project root (local) or FIREBASE_CONFIG_JSON env var is set (Render).")
+        if not firebase_config_json:
+            print("CRITICAL ERROR: FIREBASE_CONFIG_JSON environment variable not set.")
+            print("Please ensure your Firebase service account key JSON is set as an environment variable on Render.")
             return False
 
-        if not firebase_admin._apps: # Check if app is already initialized to prevent errors
+        cred = credentials.Certificate(json.loads(firebase_config_json))
+        print("Using FIREBASE_CONFIG_JSON environment variable for Firebase initialization.")
+
+        if not firebase_admin._apps:
             firebase_admin.initialize_app(cred)
         db = firestore.client()
-        print(f"Firebase initialized successfully. db object is: {db}") # Added for debugging
+        print(f"Firebase initialized successfully. db object is: {db}")
         return True
     except Exception as e:
         print(f"Failed to initialize Firebase: {e}")
-        import traceback # Added for debugging
-        traceback.print_exc() # Added for debugging
+        import traceback
+        traceback.print_exc()
         return False
 
 # --- Load Model and Class Indices on startup ---
 def load_resources():
     global model, class_labels
-    print("Attempting to load model and class indices...") # Added for debugging
+    print("Attempting to load model and class indices...")
     try:
-        # The model should have been downloaded by the Render build command before this runs.
+        # Model is expected to be present from GitHub clone
         if not os.path.exists(MODEL_FILENAME):
-            print(f"Error: Model file not found at {MODEL_FILENAME} during load_resources. It should have been downloaded by build command.")
+            print(f"Error: Model file not found at {MODEL_FILENAME}. Please ensure it's committed to GitHub.")
             return False
         if not os.path.exists(CLASS_INDICES_FILENAME):
             print(f"Error: Class indices file not found at {CLASS_INDICES_FILENAME}. Please ensure it's in the project root.")
             return False
 
-        model = load_model(MODEL_FILENAME)
+        # --- Load TFLite model using Interpreter ---
+        interpreter = tf.lite.Interpreter(model_path=MODEL_FILENAME)
+        interpreter.allocate_tensors()
+        model = interpreter # Assign the interpreter to the global 'model' variable
+
         with open(CLASS_INDICES_FILENAME, 'r') as f:
             class_indices = json.load(f)
         class_labels = {v: k for k, v in class_indices.items()}
@@ -129,21 +81,9 @@ def load_resources():
         return True
     except Exception as e:
         print(f"Failed to load model or class indices: {e}")
-        import traceback # Added for debugging
-        traceback.print_exc() # Added for debugging
+        import traceback
+        traceback.print_exc()
         return False
-
-# --- Call initialization functions directly when the module is imported ---
-# These lines will run when Gunicorn imports app.py
-if not initialize_firebase():
-    print("CRITICAL ERROR: Firebase initialization failed during app startup.")
-    # You might want to raise an exception or exit here in a real production app
-    # to prevent the app from running in a broken state.
-    # For now, we'll let it proceed to allow other debugging.
-
-if not load_resources():
-    print("CRITICAL ERROR: Model and class indices loading failed during app startup.")
-    # Similar to Firebase, consider raising an exception or exiting.
 
 
 # --- Gemini Integration ---
@@ -214,9 +154,22 @@ def predict():
         
         img = image.load_img(img_stream, target_size=(IMG_HEIGHT, IMG_WIDTH))
         img_array = image.img_to_array(img)
-        img_array = np.expand_dims(img_array, axis=0) / 255.0
+        img_array = np.expand_dims(img_array, axis=0).astype(np.float32) / 255.0
 
-        prediction = model.predict(img_array)
+        # --- TFLite Inference ---
+        input_details = model.get_input_details()
+        output_details = model.get_output_details()
+
+        # Set input tensor
+        model.set_tensor(input_details[0]['index'], img_array)
+        
+        # Run inference
+        model.invoke()
+        
+        # Get output tensor
+        prediction = model.get_tensor(output_details[0]['index'])
+        # --- End TFLite Inference ---
+
         predicted_class_index = np.argmax(prediction[0])
         confidence = np.max(prediction[0]) * 100
         predicted_class_name = class_labels[predicted_class_index]
@@ -235,9 +188,9 @@ def predict():
             "confidence": float(confidence)
         })
     except Exception as e:
-        print(f"ERROR during prediction: {e}") # Added for debugging
-        import traceback # Added for debugging
-        traceback.print_exc() # Added for debugging
+        print(f"ERROR during prediction: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": f"Error during prediction: {e}"}), 500
 
 # --- Get Diagnosis Endpoint ---
@@ -260,7 +213,7 @@ def get_diagnosis():
 @app.route('/history', methods=['GET'])
 def get_history():
     if not db:
-        print("ERROR: Firestore 'db' object is None before history fetch.") # Added for debugging
+        print("ERROR: Firestore 'db' object is None before history fetch.")
         return jsonify({"error": "Firestore not initialized."}), 500
 
     try:
@@ -276,9 +229,9 @@ def get_history():
 
         return jsonify({"history": history_data})
     except Exception as e:
-        print(f"ERROR fetching history: {e}") # Added for debugging
-        import traceback # Added for debugging
-        traceback.print_exc() # Added for debugging
+        print(f"ERROR fetching history: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": f"Error fetching history: {e}"}), 500
 
 # --- Frontend Routes ---
@@ -292,7 +245,7 @@ def history_page():
 
 @app.route('/user_guide')
 def user_guide():
-    return render_template('user_guide.html') # Corrected from user_guide.html
+    return render_template('user_guide.html') # Assuming user_guide.html is the correct filename
 
 @app.route('/tools')
 def tools_page():
@@ -300,25 +253,49 @@ def tools_page():
 
 # --- Main entry point for Flask (only for local development) ---
 if __name__ == '__main__':
-    # For local development, you might call download_model_from_gcs() here
-    # if you want it to download every time you run app.py locally.
-    # For Render, it will be handled by the build command.
-    
-    # It's crucial to call download_model_from_gcs() before load_resources()
-    # when running locally, if the model isn't already present.
-    # For Render, the build command handles the download.
-    
-    # Example for local run (uncomment if you want app.py to manage local download):
-    # try:
-    #     download_model_from_gcs()
-    # except Exception as e:
-    #     print(f"Local model download failed: {e}")
-    #     # Decide if you want to exit or continue without model
-    #     exit(1) # Exit if model download is critical
-
-    # These are now called outside this block for Gunicorn compatibility
-    # if initialize_firebase() and load_resources():
+    # This block is for local development only.
+    # It will NOT run when Gunicorn imports app.py on Render.
     print("Starting Flask server for local development...")
-    app.run(debug=True)
-    # else:
-    #     print("Application could not start due to missing resources or Firebase initialization failure.")
+
+    # For local development, we assume the model is already present locally.
+    # We explicitly DO NOT call download_model_from_gcs() here.
+
+    # Initialize Firebase and load model/class indices here for local debug mode.
+    # For local, you'd typically use serviceAccountKey.json or a local .env for FIREBASE_CONFIG_JSON
+    # This block will still try to load from LOCAL_FIREBASE_KEY_PATH if FIREBASE_CONFIG_JSON is not set.
+    # If you have a separate app.py for local, you can simplify this.
+    if not initialize_firebase():
+        print("CRITICAL ERROR: Firebase initialization failed during app startup.")
+        exit(1) # Exit if Firebase is critical
+
+    if not load_resources():
+        print("CRITICAL ERROR: Model and class indices loading failed during app startup.")
+        exit(1) # Exit if model is critical
+
+    # Run the Flask app in debug mode for local development
+    app.run(debug=True, port=5000)
+
+# --- Initialization for Render deployment (Gunicorn) ---
+# This block will run when Gunicorn imports app.py as a module on Render.
+if os.getenv("RENDER"): # Check if running on Render
+    print("Detected Render environment. Performing production initialization...")
+    # Model is now expected to be available directly from the GitHub repository clone.
+    # No GCS download is needed at runtime or during the build step for the model.
+
+    if not initialize_firebase():
+        print("CRITICAL ERROR: Firebase initialization failed for Render deployment.")
+        # In a real production app, you might want to raise an exception here
+        # raise RuntimeError("Firebase initialization failed.")
+
+    if not load_resources():
+        print("CRITICAL ERROR: Model and class indices loading failed for Render deployment.")
+        # In a real production app, you might want to raise an exception here
+        # raise RuntimeError("Model loading failed.")
+else:
+    # This 'else' block handles the case where os.getenv("RENDER") is not true,
+    # meaning it's not detected as a Render environment.
+    # For local development, the __main__ block already handles initialization.
+    # So, this 'else' block is effectively redundant if the __main__ block runs,
+    # but it's harmless.
+    print("Not running on Render. Local initialization handled by __main__ block.")
+
