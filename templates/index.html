@@ -314,13 +314,12 @@
 
           <div class="text-center max-w-3xl mx-auto px-4 mt-10 space-y-4">
 
-            <div
-              class="max-w-xl mx-auto mt-10 p-6 bg-green-100 border-4 border-green-800 rounded-xl shadow-lg transform transition duration-500 hover:scale-105">
-              <div class="overflow-hidden whitespace-nowrap">
-                <h2 class="text-4xl font-extrabold text-green-800 inline-block ">
-                  Welcome to <span class="text-green-900 underline">AI Crop Doctor</span>
-                </h2>
-              </div>
+            <div class="w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl mx-auto mt-6 sm:mt-8 md:mt-10 px-4 sm:px-6 py-4 sm:py-6 bg-green-100 border-2 sm:border-4 border-green-800 rounded-lg sm:rounded-xl shadow-lg transform transition duration-500 hover:scale-105">
+                <div class="overflow-hidden">
+                  <h2 class="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold text-green-800 text-center leading-tight">
+                        Welcome to <span class="text-green-900 underline block sm:inline">AI Crop Doctor</span>
+                  </h2>
+                </div>
 
             </div>
 
@@ -1009,7 +1008,7 @@
 
     <!-- Pass Firebase Config from Flask to JS -->
     <script>
-      window.FIREBASE_CONFIG = {{ firebase_context | tojson | safe }};
+      window.FIREBASE_CONFIG = {{ firebase_context | tojson | safe if firebase_context else '{}' }};
     </script>
     <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
 </body>
