@@ -187,13 +187,12 @@
 
           <div class="text-center max-w-3xl mx-auto px-4 mt-10 space-y-4">
 
-            <div
-              class="max-w-xl mx-auto mt-10 p-6 bg-green-100 border-4 border-green-800 rounded-xl shadow-lg transform transition duration-500 hover:scale-105">
-              <div class="overflow-hidden whitespace-nowrap">
-                <h2 class="text-4xl font-extrabold text-green-800 inline-block ">
-                  Welcome to <span class="text-green-900 underline">AI Crop Doctor</span>
-                </h2>
-              </div>
+            <div class="w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl mx-auto mt-6 sm:mt-8 md:mt-10 px-4 sm:px-6 py-4 sm:py-6 bg-green-100 border-2 sm:border-4 border-green-800 rounded-lg sm:rounded-xl shadow-lg transform transition duration-500 hover:scale-105">
+                <div class="overflow-hidden">
+                  <h2 class="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold text-green-800 text-center leading-tight">
+                        Welcome to <span class="text-green-900 underline block sm:inline">AI Crop Doctor</span>
+                  </h2>
+                </div>
 
             </div>
 
@@ -839,6 +838,38 @@
     <!-- Auth JS moved to bottom to safe load config -->
 
     <script>
+      window.onload = function () {
+        // Show Frame 1 for 2s
+        setTimeout(() => {
+          document.getElementById("frame1").classList.add("hidden");
+          document.getElementById("frame2").classList.remove("hidden");
+
+          // Show Frame 2 for 2s, then Check Login
+          setTimeout(() => {
+            document.getElementById("frame2").classList.add("hidden");
+
+            // The auth.js script will automatically handle the transition to 'mainContent'
+            // if the user is already logged in. 
+            // If not, we show the login frame here.
+            if (typeof firebase !== 'undefined' && firebase.auth().currentUser) {
+              // User likely logged in (though might take a ms to sync), auth.js handles it.
+              // But to be safe if auth state isn't ready:
+              document.getElementById("mainContent").classList.remove("hidden");
+            } else {
+              // Show Login Frame by default, auth.js hides it if user is found.
+              // But we can check if 'mainContent' is already visible (handled by auth state listener)
+              if (document.getElementById("mainContent").classList.contains("hidden")) {
+                document.getElementById("loginFrame").classList.remove("hidden");
+              }
+            }
+          }, 2000); // Frame 2 duration
+        }, 2000); // Frame 1 duration
+      };
+    </script>
+
+    <!-- Pass Firebase Config from Flask to JS -->
+    <script>
+      window.FIREBASE_CONFIG = {{ firebase_context | tojson | safe if firebase_context else '{}' }};
       // Auth disabled: ensure main content is visible.
       window.addEventListener('DOMContentLoaded', () => {
         const mainContent = document.getElementById('mainContent');
