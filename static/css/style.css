@@ -695,3 +695,62 @@ a:hover::after {
   background: rgba(34, 197, 94, 0.08);
   border-radius: 0.75rem;
 }
+
+/* ===== Prediction Result Card Upgrade ===== */
+
+.result-card {
+  background: white;
+  padding: 25px;
+  border-radius: 16px;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  text-align: center;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.result-image {
+  max-height: 220px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+}
+
+.disease-name {
+  font-size: 26px;
+  font-weight: bold;
+  color: #e63946;
+  margin: 10px 0;
+}
+
+.confidence-section {
+  margin-top: 15px;
+}
+
+.progress-bar {
+  background-color: #eee;
+  border-radius: 20px;
+  overflow: hidden;
+  height: 22px;
+}
+
+.progress {
+  background-color: #2a9d8f;
+  height: 100%;
+  text-align: center;
+  color: white;
+  font-size: 12px;
+  line-height: 22px;
+  transition: width 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {opacity: 0; transform: translateY(10px);}
+  to {opacity: 1; transform: translateY(0);}
+}
+
+@media (max-width: 600px) {
+  .result-card {
+    padding: 15px;
+  }
+  .disease-name {
+    font-size: 20px;
+  }
+}
