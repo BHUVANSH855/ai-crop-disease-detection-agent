@@ -300,12 +300,27 @@ document.addEventListener('DOMContentLoaded', () => {
           }
            formattedDisease = words.join(' ');
 
-           predictionResult.innerHTML =
-             `<span class="font-bold text-blue-800">${formattedDisease}</span>`;
+            predictionResult.innerHTML =
+              `<span class="font-bold text-blue-800">${formattedDisease}</span>`;
+            
+            // Update confidence UI
+            confidenceBar.style.width = `${currentConfidence}%`;
+            confidenceScoreText.textContent = `${currentConfidence.toFixed(2)}%`;
+        
+            // NEW: Confidence-based warning
+            const existingWarning = document.getElementById('confidence-warning');
+            if (existingWarning) existingWarning.remove();
+            
+            if (currentConfidence < 60) {
+                const warning = document.createElement('div');
+                warning.id = 'confidence-warning';
+                warning.className = 'mt-3 p-3 rounded bg-yellow-100 text-yellow-800 border border-yellow-300 text-sm';
+                warning.innerHTML = '⚠️ Low confidence prediction. Please retake the image in good lighting for better accuracy.';
+            
+                predictionResult.parentElement.appendChild(warning);
+            }
 
-            confidenceBar.style.width = `${currentConfidence}%`; // Update confidence bar width
-            confidenceScoreText.textContent = `${currentConfidence.toFixed(2)}%`; // Update confidence score text
-
+            
             loadingSpinnerInitial.classList.add('hidden');
             diseaseDetectionSection.classList.remove('hidden'); // Show disease detection section
             additionalInfoSection.classList.remove('hidden'); // Show additional info section
