@@ -926,3 +926,25 @@ a:hover::after {
     transform: translateY(0);
   }
 }
+
+/* =====================================================
+   ✅ Scroll to Top Button (Issue #119)
+===================================================== */
+
+.scroll-top-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 999;
+  display: none;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 18px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.scroll-top-btn.show {
+  display: block;
+}
