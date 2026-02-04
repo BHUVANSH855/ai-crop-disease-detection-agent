@@ -171,7 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     predictionResult.textContent = "";
     confidenceBar.style.width = "0%"; // Reset confidence bar
-    confidenceBar.textContent = '';   
+    confidenceBar.textContent = '';
     confidenceScoreText.textContent = ""; // Reset confidence score text
     finalReportContent.innerHTML = ""; // Clear report content
     predictedDiseaseName = "";
@@ -435,7 +435,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Prediction failed.');
+                throw new Error(errorData.error || 'Prediction failed.';
             }
 
             const data = await response.json();
@@ -526,7 +526,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Diagnosis failed.');
+                throw new Error(errorData.error || 'Diagnosis failed.';
             }
 
             const data = await response.json();
@@ -561,6 +561,24 @@ document.addEventListener("DOMContentLoaded", () => {
         getReportButton.click();
     });
 
+  // Scroll to Top Button (Issue #119)
+  const scrollBtn = document.getElementById("scrollTopBtn");
+  if (scrollBtn) {
+    window.addEventListener("scroll", () => {
+      if (window.scrollY > 250) {
+        scrollBtn.classList.add("show");
+      } else {
+        scrollBtn.classList.remove("show");
+      }
+    });
+
+    scrollBtn.addEventListener("click", () => {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    });
+  }
 
   // Initialize form state
   resetForm();
